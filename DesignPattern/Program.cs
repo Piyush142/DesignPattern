@@ -12,7 +12,7 @@ namespace DotNetDesignPatternDemos
     // ---------------------------Builders--------------------------------- //
 
 
-    class CodeElement
+    public class CodeElement
     {
         public string Name, Type;
         public List<CodeElement> Elements = new List<CodeElement>();
@@ -55,7 +55,7 @@ namespace DotNetDesignPatternDemos
         }
     }
 
-    class CodeBuilder
+    public class CodeBuilder
     {
         private readonly string rootName;
 
@@ -94,23 +94,23 @@ namespace DotNetDesignPatternDemos
 
     // ---------------------------Factory Method----------------------------------------- //
 
-    class Point
+    public class Point
     {
         private readonly double x;
         private readonly double y;
         //Factory Method Design Pattern
 
-        public static Point NewCartesianPoint(double x, double y)
-        {
-            return new Point(x, y);
-        }
+        //public static Point NewCartesianPoint(double x, double y)
+        //{
+        //    return new Point(x, y);
+        //}
 
-        public static Point NewPolarPoint(double rho, double theta)
-        {
-            return new Point(rho * Math.Cos(theta), rho * Math.Sin(theta));
-        }
+        //public static Point NewPolarPoint(double rho, double theta)
+        //{
+        //    return new Point(rho * Math.Cos(theta), rho * Math.Sin(theta));
+        //}
 
-        private Point(double x, double y)
+        public Point(double x, double y)
         {
             this.x = x;
             this.y = y;
@@ -128,7 +128,137 @@ namespace DotNetDesignPatternDemos
 
     // ------------------ Asynchronous Factory Methods -------------------//
 
+    public class Foo
+    {
+        private Foo()
+        {
+            // May be load a web page.
+        }
 
+        private async Task<Foo> InitAsync()
+        {
+            await Task.Delay(1000);
+            return this;
+        }
+
+        public static Task<Foo> CreateAsync()
+        {
+            var result = new Foo();
+            return result.InitAsync();
+        }
+    }
+
+    //--------------------------- Factory  ---------------------------//
+
+    //How about having Point Factory
+    //We will face bunch of problems as we have the point constructor private.
+
+
+    public class PointFactory
+    {
+        public static Point NewCartesianPoint(double x, double y)
+        {
+            return new Point(x, y);
+        }
+
+        public static Point NewPolarPoint(double rho, double theta)
+        {
+            return new Point(rho * Math.Cos(theta), rho * Math.Sin(theta));
+        }
+    }
+
+    //--------------------------- Object Tracking and Bulk Replacement ---------------------------//
+
+    public interface ITheme
+    {
+       string TextColor { get; }
+       string  BgrColor { get; }
+    }
+
+    public class LightTheme : ITheme
+    {
+        public string TextColor => "black";
+
+        public string BgrColor => "white";
+    }
+
+    public class DarkTheme : ITheme
+    {
+        public string TextColor => "white";
+
+        public string BgrColor => "black";
+    }
+
+    public class TrackingThemeFactory
+    {
+        private readonly List<WeakReference<ITheme>> themes = new List<WeakReference<ITheme>>();
+        public ITheme CreateTheme(bool dark) {
+            ITheme theme = dark ? new DarkTheme() : new LightTheme();
+            themes.Add(new WeakReference<ITheme>(theme));
+            return theme;
+        }
+
+        public string FactoryInfo
+        {
+            get
+            {
+                var sb = new StringBuilder();
+                foreach (var weakRef in themes)
+                {
+                    if(weakRef.TryGetTarget(out var theme))
+                    {
+                        bool dark = theme is DarkTheme;
+                        sb.Append(dark ? "Dark" : "Light")
+                          .AppendLine(" : theme");
+                    }
+                }
+                return sb.ToString();
+            }
+        }
+    }
+
+    //---------------------Bulk Replacing-----------------//
+
+    public class ReplaceableThemeFactory
+    {
+        private readonly List<WeakReference<Ref<ITheme>>> themes = new();
+
+        public ITheme createThemeImpl(bool dark)
+        {
+            return dark ? new DarkTheme() : new LightTheme(); 
+        }
+
+        public Ref<ITheme> CreateTheme(bool dark)
+        {
+            var r = new Ref<ITheme>(createThemeImpl(dark));
+            themes.Add(new(r));
+            return r;
+        }
+
+        public void ReplaceTheme(bool dark)
+        {
+            foreach (var weakRef in themes)
+            {
+                if(weakRef.TryGetTarget(out var reference)) { 
+                    reference.Value = createThemeImpl(dark);
+                }
+            }
+        }
+    }
+
+
+
+    public class Ref<T> where T : class
+    {
+        public T Value;
+
+        public Ref(T value)
+        {
+            Value = value; 
+        }
+    }
+
+    //--------------------------- --------------------------- --------------------------- //
 
     public class Demo
     {
@@ -169,14 +299,41 @@ namespace DotNetDesignPatternDemos
 
             // -------------------------------Factory Method-------------------------------------//
 
-            var pointCartesian = Point.NewCartesianPoint(4, 5);
-            var pointPolar = Point.NewPolarPoint(1.0, Math.PI/2);
-            WriteLine(pointCartesian);
-            WriteLine(pointPolar);
+            //var pointCartesian = Point.NewCartesianPoint(4, 5);
+            //var pointPolar = Point.NewPolarPoint(1.0, Math.PI/2);
+            //WriteLine(pointCartesian);
+            //WriteLine(pointPolar);
 
             //--------------------------- Asynchronous Factory Method ---------------------------//
 
+            //Foo x = await Foo.CreateAsync();
 
+
+            //--------------------------- Factory  ---------------------------//
+            //var pointCartesian = PointFactory.NewCartesianPoint(4, 5);
+            //var pointPolar = PointFactory.NewPolarPoint(1.0, Math.PI / 2);
+            //WriteLine(pointCartesian);
+            //WriteLine(pointPolar);
+
+            //--------------------------- Object Tracking and Bulk Replacement ---------------------------//
+
+            var factory = new TrackingThemeFactory();
+            var theme1 = factory.CreateTheme(true);
+            var theme2 = factory.CreateTheme(false);
+
+            WriteLine(factory.FactoryInfo);
+
+            var factory2 = new ReplaceableThemeFactory();
+            var theme3 = factory2.CreateTheme(true);
+            var theme4 = factory2.CreateTheme(false);
+
+            WriteLine(theme3.Value.BgrColor);
+            WriteLine(theme4.Value.BgrColor);
+
+            factory2.ReplaceTheme(true);
+
+            WriteLine(theme3.Value.BgrColor);
+            WriteLine(theme4.Value.BgrColor);
         }
     }
 }
